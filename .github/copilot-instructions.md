@@ -24,7 +24,7 @@ Public market data can use `new CryptoComRestClient()` without credentials.
 
 ## Result handling
 
-REST methods return `WebCallResult<T>` or `WebCallResult`. WebSocket subscriptions and socket API requests return `CallResult<T>` or `CallResult`. Always check `.Success` before reading `.Data`; the error is on `.Error`.
+REST methods return `HttpResult<T>` or `HttpResult`. WebSocket subscriptions return `WebSocketResult<UpdateSubscription>`; socket API requests return `QueryResult<T>` or `QueryResult`. Always check `.Success` before reading `.Data`; the error is on `.Error`.
 
 ## API structure
 
@@ -50,7 +50,7 @@ Store the returned `UpdateSubscription` and unsubscribe on shutdown via `socketC
 
 ## Cross-exchange
 
-For code that needs to work across multiple exchanges, use `CryptoExchange.Net.SharedApis` interfaces (`ISpotTickerRestClient`, `ISpotOrderRestClient`, `IFuturesOrderRestClient`, etc.) accessed via `.ExchangeApi.SharedClient`.
+For code that needs to work across multiple exchanges, use `CryptoExchange.Net.SharedApis` interfaces (`ISpotTickerRestClient`, `ISpotOrderRestClient`, `IFuturesOrderRestClient`, etc.) accessed via `.ExchangeApi.SharedClient`. Shared socket order placement and cancellation use `ISpotOrderManagementSocketClient` or `IFuturesOrderManagementSocketClient`.
 
 Shared spot and futures symbol results include `DisplayName` and base/quote asset type/subtype metadata. Loading symbols through `ISpotSymbolRestClient` or `IFuturesSymbolRestClient` also populates `SpotSymbolCatalog` or `FuturesSymbolCatalog` for cached lookup.
 

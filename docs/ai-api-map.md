@@ -158,6 +158,10 @@ Use SharedApis for exchange-agnostic code across Crypto.com, Binance, Bybit, OKX
 | Shared order book socket | `IOrderBookSocketClient.SubscribeToOrderBookUpdatesAsync(...)` |
 | Shared balance socket | `IBalanceSocketClient.SubscribeToBalanceUpdatesAsync(...)` |
 | Shared position socket | `IPositionSocketClient.SubscribeToPositionUpdatesAsync(...)` |
+| Place shared spot order over socket | `ISpotOrderManagementSocketClient.PlaceSpotOrderAsync(...)` |
+| Cancel shared spot order over socket | `ISpotOrderManagementSocketClient.CancelSpotOrderAsync(...)` |
+| Place shared futures order over socket | `IFuturesOrderManagementSocketClient.PlaceFuturesOrderAsync(...)` |
+| Cancel shared futures order over socket | `IFuturesOrderManagementSocketClient.CancelFuturesOrderAsync(...)` |
 
 Shared REST methods return `HttpResult<T>` / `HttpResult`; shared socket subscriptions return `WebSocketResult<UpdateSubscription>`; shared symbol/cache helpers such as `SupportsSpotSymbolAsync` and `SupportsFuturesSymbolAsync` can return `ExchangeCallResult<T>`.
 

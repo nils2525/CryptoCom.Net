@@ -4,8 +4,8 @@
 
 CryptoCom.Net is a strongly typed .NET client library for the Crypto.com Exchange REST and WebSocket APIs. It is part of the CryptoExchange.Net ecosystem and uses the same result, shared API, logging, rate limiting, and socket patterns as the other JKorf exchange libraries.
 
-Current package version in this repository: 4.3.0.
-CryptoExchange.Net dependency: 12.2.0.
+Current package version in this repository: 4.4.0.
+CryptoExchange.Net dependency: 12.5.0.
 Target frameworks: netstandard2.0, netstandard2.1, net8.0, net9.0, net10.0.
 Native AOT: supported on compatible .NET targets.
 
@@ -416,6 +416,8 @@ SharedSymbolCatalog? catalog = symbolClient.SpotSymbolCatalog;
 ```
 
 Use `IFuturesSymbolRestClient.GetFuturesSymbolsAsync(...)` and `FuturesSymbolCatalog` for derivatives.
+
+The shared socket client also implements `ISpotOrderManagementSocketClient` and `IFuturesOrderManagementSocketClient`. Use `PlaceSpotOrderAsync(...)` / `CancelSpotOrderAsync(...)` or `PlaceFuturesOrderAsync(...)` / `CancelFuturesOrderAsync(...)` for exchange-agnostic socket order management. These requests return `QueryResult<SharedId>`; check `.Success` before reading the order id from `.Data`.
 
 Shared WebSocket subscriptions return an `UpdateSubscription` in `.Data`. For shared interface variables, unsubscribe through the concrete socket client:
 
