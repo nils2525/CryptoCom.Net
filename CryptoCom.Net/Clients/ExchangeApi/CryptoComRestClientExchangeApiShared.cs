@@ -272,7 +272,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
             if (!result.Success)
                 return HttpResult.Fail<SharedOrderBook>(result);
 
-            return HttpResult.Ok(result, new SharedOrderBook(result.Data.Asks, result.Data.Bids));
+            return HttpResult.Ok(result, new SharedOrderBook(SharedQuantityType.BaseAsset, result.Data.Asks, result.Data.Bids));
         }
 
         #endregion
@@ -578,9 +578,9 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                 ExchangeSymbolCache.ParseSymbol(request.Symbol!.TradingMode == TradingMode.Spot ? _topicSpotId : _topicFuturesId, EnvironmentName, null, symbol),
                 symbol,
                 resultTicker.Data.Asks[0].Price,
-                resultTicker.Data.Asks[0].Quantity,
+                new SharedOrderQuantity(resultTicker.Data.Asks[0].Quantity),
                 resultTicker.Data.Bids[0].Price,
-                resultTicker.Data.Bids[0].Quantity));
+                new SharedOrderQuantity(resultTicker.Data.Bids[0].Quantity)));
         }
 
         #endregion
@@ -794,7 +794,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                             x.OrderId,
                             x.TradeId,
                             x.OrderSide == OrderSide.Buy ? SharedOrderSide.Buy : SharedOrderSide.Sell,
-                            x.Quantity,
+                            new SharedOrderQuantity(x.Quantity),
                             x.Price,
                             x.CreateTime)
                         {
@@ -827,15 +827,6 @@ namespace CryptoCom.Net.Clients.ExchangeApi
             if (tif == SharedTimeInForce.GoodTillCanceled) return TimeInForce.GoodTillCancel;
 
             return null;
-        }
-
-        private SharedOrderStatus ParseStatus(OrderStatus status)
-        {
-            if (status == OrderStatus.Pending || status == OrderStatus.New || status == OrderStatus.Active) return SharedOrderStatus.Open;
-            if (status == OrderStatus.Canceled || status == OrderStatus.Rejected || status == OrderStatus.Expired) return SharedOrderStatus.Canceled;
-            if (status == OrderStatus.Filled) return SharedOrderStatus.Filled;
-
-            return SharedOrderStatus.Unknown;
         }
 
         private SharedOrderType ParseOrderType(OrderType type)
@@ -1206,7 +1197,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                 return HttpResult.Fail<SharedOpenInterest>(Exchange, new ServerError(new ErrorInfo(ErrorType.UnknownSymbol, "Symbol not found")));
 
             var symbol = result.Data.Single();
-            return HttpResult.Ok(result, new SharedOpenInterest(result.Data.Single().OpenInterest ?? 0));
+            return HttpResult.Ok(result, new SharedOpenInterest(new SharedOrderQuantity(result.Data.Single().OpenInterest ?? 0)));
         }
 
         #endregion
@@ -1433,7 +1424,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                             x.OrderId,
                             x.TradeId,
                             x.OrderSide == OrderSide.Buy ? SharedOrderSide.Buy : SharedOrderSide.Sell,
-                            x.Quantity,
+                            new SharedOrderQuantity(x.Quantity),
                             x.Price,
                             x.CreateTime)
                         {
@@ -1475,14 +1466,19 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                 data = data.Where(x => request.TradingMode == TradingMode.DeliveryLinear ? x.Symbol!.Contains('_') : !x.Symbol!.Contains('_'));
 
             var resultTypes = request.Symbol == null && request.TradingMode == null ? SupportedTradingModes : request.Symbol != null ? new[] { request.Symbol!.TradingMode } : new[] { request.TradingMode!.Value };
-            return HttpResult.Ok(result, data.Select(x => new SharedPosition(ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol), x.Symbol, Math.Abs(x.Quantity), x.UpdateTime)
-            {
-                UnrealizedPnl = x.SessionPnl,
-                AverageOpenPrice = Math.Abs(x.OpenPosCost),
-                PositionMode = SharedPositionMode.OneWay,
-                PositionSide = x.Quantity < 0 ? SharedPositionSide.Short : SharedPositionSide.Long,
-                UpdateTime = x.UpdateTime                
-            }).ToArray());
+            return HttpResult.Ok(result, data.Select(x => 
+                new SharedPosition(
+                    ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol), 
+                    x.Symbol, 
+                    new SharedOrderQuantity(Math.Abs(x.Quantity)),
+                    x.UpdateTime)
+                {
+                    UnrealizedPnl = x.SessionPnl,
+                    AverageOpenPrice = Math.Abs(x.OpenPosCost),
+                    PositionMode = SharedPositionMode.OneWay,
+                    PositionSide = x.Quantity < 0 ? SharedPositionSide.Short : SharedPositionSide.Long,
+                    UpdateTime = x.UpdateTime                
+                }).ToArray());
         }
 
         ClosePositionOptions IFuturesOrderRestClient.ClosePositionOptions { get; } = new ClosePositionOptions(_exchangeName, true);
