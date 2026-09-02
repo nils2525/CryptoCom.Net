@@ -36,6 +36,8 @@ namespace CryptoCom.Net.Clients.ExchangeApi
     internal partial class CryptoComSocketClientExchangeApi : SocketApiClient<CryptoComEnvironment, CryptoComAuthenticationProvider, CryptoComCredentials>, ICryptoComSocketClientExchangeApi
     {
         #region fields
+        private readonly CryptoComSocketClientExchangeSharedApi _sharedApi;
+
         protected override ErrorMapping ErrorMapping => CryptoComErrors.Errors;
 
         #endregion
@@ -50,6 +52,8 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         {
             MessageSendSizeLimit = 4000;
             RateLimiter = CryptoComExchange.RateLimiter.Socket;
+
+            _sharedApi = new CryptoComSocketClientExchangeSharedApi(this);
 
             AddSystemSubscription(new CryptoComHeartBeatSubscription(_logger));
         }
@@ -803,7 +807,9 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         #endregion
 
         /// <inheritdoc />
-        public ICryptoComSocketClientExchangeApiShared SharedClient => this;
+        public ICryptoComSocketClientExchangeApiShared SharedClient => _sharedApi;
+        /// <inheritdoc />
+        public ICryptoComSocketClientExchangeSharedApi SharedApi => _sharedApi;
 
         /// <inheritdoc />
         public override string FormatSymbol(string baseAsset, string quoteAsset, TradingMode tradingMode, DateTime? deliverTime = null)
