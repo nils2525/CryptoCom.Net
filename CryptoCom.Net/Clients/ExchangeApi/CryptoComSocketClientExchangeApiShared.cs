@@ -11,66 +11,35 @@ using CryptoExchange.Net;
 
 namespace CryptoCom.Net.Clients.ExchangeApi
 {
-    internal class CryptoComSocketClientExchangeSharedApi : 
-        SharedApiBase,
-        ICryptoComSocketClientExchangeApiShared,
-        ICryptoComSocketClientExchangeSharedApi
+    internal partial class CryptoComSocketClientExchangeApi : ICryptoComSocketClientExchangeApiShared
     {
-        private readonly CryptoComSocketClientExchangeApi _api;
-
         private const string _topicSpotId = "CryptoComSpot";
         private const string _topicFuturesId = "CryptoComFutures";
         private const string _exchangeName = "CryptoCom";
 
-        public override SharedClientInfo Discover() => SharedUtils.GetClientInfo(CryptoComExchange.Metadata, this);
+        public TradingMode[] SupportedTradingModes => new[] { TradingMode.Spot, TradingMode.PerpetualLinear, TradingMode.DeliveryLinear };
+        public TradingMode[] SupportedFuturesModes => new[] { TradingMode.PerpetualLinear, TradingMode.DeliveryLinear };
 
-        public CryptoComSocketClientExchangeSharedApi(CryptoComSocketClientExchangeApi api)
-            : base(
-                  SharedTransport.Rest,
-                  api.Exchange,
-                  [TradingMode.Spot, TradingMode.PerpetualLinear, TradingMode.DeliveryLinear],
-                  () => api.Authenticated,
-                  api.FormatSymbol)
-        {
-            _api = api;
-
-            SetCapabilities(
-                SubscribeTickerOptions,
-                SubscribeBookTickerOptions,
-                SubscribeKlineOptions,
-                SubscribeOrderBookOptions,
-                SubscribeTradeOptions,
-                SubscribeUserTradeOptions,
-                SubscribeSpotOrderOptions,
-                SubscribeFuturesOrderOptions,
-                SubscribePositionOptions,
-                SubscribeBalanceOptions,
-                PlaceSpotOrderOptions,
-                CancelSpotOrderOptions,
-                PlaceFuturesOrderOptions,
-                CancelFuturesOrderOptions
-                );
-        }
+        public void SetDefaultExchangeParameter(string key, object value) => ExchangeParameters.SetStaticParameter(Exchange, key, value);
+        public void ResetDefaultExchangeParameters() => ExchangeParameters.ResetStaticParameters();
+        public SharedClientInfo Discover() => SharedUtils.GetClientInfo(CryptoComExchange.Metadata, this);
 
         #region Ticker client
-        async Task<WebSocketResult<UpdateSubscription>> ISubscribeTickerSocket.SubscribeToTickerUpdatesAsync(SubscribeTickerRequest request, Action<DataEvent<SharedTicker>> handler, CancellationToken ct)
-            => await SubscribeToTickerUpdatesAsync(request, x => handler(x.ToType<SharedTicker>(x.Data)), ct).ConfigureAwait(false);
-
-        public SubscribeTickerOptions SubscribeTickerOptions { get; } = new SubscribeTickerOptions(_exchangeName)
+        SubscribeTickerOptions ITickerSocketClient.SubscribeTickerOptions { get; } = new SubscribeTickerOptions(_exchangeName)
         {
             SupportsMultipleSymbols = true,
             MaxSymbolCount = 200
         };
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToTickerUpdatesAsync(SubscribeTickerRequest request, Action<DataEvent<SharedSpotTicker>> handler, CancellationToken ct)
+        async Task<WebSocketResult<UpdateSubscription>> ITickerSocketClient.SubscribeToTickerUpdatesAsync(SubscribeTickerRequest request, Action<DataEvent<SharedSpotTicker>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeTickerOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeTickerOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
             var symbols = request.Symbols?.Length > 0 ? request.Symbols.Select(x => x.GetSymbol(FormatSymbol)) : [request.Symbol!.GetSymbol(FormatSymbol)];
-            var result = await _api.SubscribeToTickerUpdatesAsync(symbols, update => handler(update.ToType(
+            var result = await SubscribeToTickerUpdatesAsync(symbols, update => handler(update.ToType(
                 new SharedSpotTicker(
-                    ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, update.Data.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, update.Data.Symbol),
+                    ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, update.Data.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, update.Data.Symbol),
                     update.Data.Symbol,
                     update.Data.LastPrice,
                     update.Data.HighPrice,
@@ -84,22 +53,22 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Book Ticker client
 
-        public SubscribeBookTickerOptions SubscribeBookTickerOptions { get; } = new SubscribeBookTickerOptions(_exchangeName, false)
+        SubscribeBookTickerOptions IBookTickerSocketClient.SubscribeBookTickerOptions { get; } = new SubscribeBookTickerOptions(_exchangeName, false)
         {
             MaxSymbolCount = 200,
             SupportsMultipleSymbols = true
         };
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToBookTickerUpdatesAsync(SubscribeBookTickerRequest request, Action<DataEvent<SharedBookTicker>> handler, CancellationToken ct)
+        async Task<WebSocketResult<UpdateSubscription>> IBookTickerSocketClient.SubscribeToBookTickerUpdatesAsync(SubscribeBookTickerRequest request, Action<DataEvent<SharedBookTicker>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeBookTickerOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeBookTickerOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
             var symbols = request.Symbols?.Length > 0 ? request.Symbols.Select(x => x.GetSymbol(FormatSymbol)) : [request.Symbol!.GetSymbol(FormatSymbol)];
-            var result = await _api.SubscribeToTickerUpdatesAsync(symbols, update => handler(
+            var result = await SubscribeToTickerUpdatesAsync(symbols, update => handler(
                 update.ToType(
                     new SharedBookTicker(
-                        ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, update.Data.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, update.Data.Symbol), 
+                        ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, update.Data.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, update.Data.Symbol), 
                         update.Data.Symbol, 
                         update.Data.BestAskPrice ?? 0,
                         new SharedOrderQuantity(update.Data.BestAskQuantity), 
@@ -112,7 +81,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         #endregion
 
         #region Kline client
-        public SubscribeKlineOptions SubscribeKlineOptions { get; } = new SubscribeKlineOptions(_exchangeName, false,
+        SubscribeKlineOptions IKlineSocketClient.SubscribeKlineOptions { get; } = new SubscribeKlineOptions(_exchangeName, false,
             SharedKlineInterval.OneMinute,
             SharedKlineInterval.ThreeMinutes,
             SharedKlineInterval.FiveMinutes,
@@ -129,15 +98,15 @@ namespace CryptoCom.Net.Clients.ExchangeApi
             SupportsMultipleSymbols = true,
             MaxSymbolCount = 140
         };
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToKlineUpdatesAsync(SubscribeKlineRequest request, Action<DataEvent<SharedKline>> handler, CancellationToken ct)
+        async Task<WebSocketResult<UpdateSubscription>> IKlineSocketClient.SubscribeToKlineUpdatesAsync(SubscribeKlineRequest request, Action<DataEvent<SharedKline>> handler, CancellationToken ct)
         {
             var interval = (Enums.KlineInterval)request.Interval;
-            var validationError = SubscribeKlineOptions.ValidateRequest(request, this);
+var validationError = SharedClient.SubscribeKlineOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
             var symbols = request.Symbols?.Length > 0 ? request.Symbols.Select(x => x.GetSymbol(FormatSymbol)) : [request.Symbol!.GetSymbol(FormatSymbol)];
-            var result = await _api.SubscribeToKlineUpdatesAsync(symbols, interval, update =>
+            var result = await SubscribeToKlineUpdatesAsync(symbols, interval, update =>
             {
                 if (update.UpdateType == SocketUpdateType.Snapshot)
                     return;
@@ -146,7 +115,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                 {
                     handler(update.ToType(
                         new SharedKline(
-                            ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, update.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, update.Symbol),
+                            ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, update.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, update.Symbol),
                             update.Symbol!,
                             item.OpenTime,
                             item.ClosePrice,
@@ -162,21 +131,21 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         #endregion
 
         #region Order Book client
-        public SubscribeOrderBookOptions SubscribeOrderBookOptions { get; } = new SubscribeOrderBookOptions(_exchangeName, false, new[] { 5, 10, 20 })
+        SubscribeOrderBookOptions IOrderBookSocketClient.SubscribeOrderBookOptions { get; } = new SubscribeOrderBookOptions(_exchangeName, false, new[] { 5, 10, 20 })
         {
             SupportsMultipleSymbols = true,
             MaxSymbolCount = 200
         };
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToOrderBookUpdatesAsync(SubscribeOrderBookRequest request, Action<DataEvent<SharedOrderBook>> handler, CancellationToken ct)
+        async Task<WebSocketResult<UpdateSubscription>> IOrderBookSocketClient.SubscribeToOrderBookUpdatesAsync(SubscribeOrderBookRequest request, Action<DataEvent<SharedOrderBook>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeOrderBookOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeOrderBookOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
             var symbols = request.Symbols?.Length > 0 ? request.Symbols.Select(x => x.GetSymbol(FormatSymbol)) : [request.Symbol!.GetSymbol(FormatSymbol)];
-            var result = await _api.SubscribeToOrderBookSnapshotUpdatesAsync(symbols, request.Limit ?? 10, update => handler(
+            var result = await SubscribeToOrderBookSnapshotUpdatesAsync(symbols, request.Limit ?? 10, update => handler(
                 update.ToType(
-                    new SharedOrderBook(SharedQuantityType.BaseAsset, update.Data.SequenceNumber, update.Data.Asks, update.Data.Bids))), ct).ConfigureAwait(false);
+                    new SharedOrderBook(SharedQuantityType.BaseAsset, update.Data.Asks, update.Data.Bids))), ct).ConfigureAwait(false);
 
             return result;
         }
@@ -184,25 +153,25 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Trade client
 
-        public SubscribeTradeOptions SubscribeTradeOptions { get; } = new SubscribeTradeOptions(_exchangeName, false)
+        SubscribeTradeOptions ITradeSocketClient.SubscribeTradeOptions { get; } = new SubscribeTradeOptions(_exchangeName, false)
         {
             SupportsMultipleSymbols = true,
             MaxSymbolCount = 200
         };
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToTradeUpdatesAsync(SubscribeTradeRequest request, Action<DataEvent<SharedTrade[]>> handler, CancellationToken ct)
+        async Task<WebSocketResult<UpdateSubscription>> ITradeSocketClient.SubscribeToTradeUpdatesAsync(SubscribeTradeRequest request, Action<DataEvent<SharedTrade[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeTradeOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeTradeOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
             var symbols = request.Symbols?.Length > 0 ? request.Symbols.Select(x => x.GetSymbol(FormatSymbol)) : [request.Symbol!.GetSymbol(FormatSymbol)];
-            var result = await _api.SubscribeToTradeUpdatesAsync(symbols, update =>
+            var result = await SubscribeToTradeUpdatesAsync(symbols, update =>
             {
                 if (update.UpdateType == SocketUpdateType.Snapshot)
                     return;
 
                 handler(update.ToType<SharedTrade[]>(update.Data.Select(x =>
-                new SharedTrade(ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, x.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, x.Symbol), 
+                new SharedTrade(ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, x.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol), 
                 x.Symbol,
                 new SharedOrderQuantity(x.Quantity),
                 x.Price,
@@ -219,21 +188,21 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region User Trade client
 
-        public SubscribeUserTradeOptions SubscribeUserTradeOptions { get; } = new SubscribeUserTradeOptions(_exchangeName, false);
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToUserTradeUpdatesAsync(SubscribeUserTradeRequest request, Action<DataEvent<SharedUserTrade[]>> handler, CancellationToken ct)
+        SubscribeUserTradeOptions IUserTradeSocketClient.SubscribeUserTradeOptions { get; } = new SubscribeUserTradeOptions(_exchangeName, false);
+        async Task<WebSocketResult<UpdateSubscription>> IUserTradeSocketClient.SubscribeToUserTradeUpdatesAsync(SubscribeUserTradeRequest request, Action<DataEvent<SharedUserTrade[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeUserTradeOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeUserTradeOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
-            var result = await _api.SubscribeToUserTradeUpdatesAsync(update =>
+            var result = await SubscribeToUserTradeUpdatesAsync(update =>
             {
                 if (update.UpdateType == SocketUpdateType.Snapshot)
                     return;
 
                 handler(update.ToType<SharedUserTrade[]>(update.Data.Select(x => 
                 new SharedUserTrade(
-                    ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, x.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, x.Symbol),
+                    ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, x.Symbol) ?? ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol),
                     x.Symbol, 
                     x.OrderId, 
                     x.TradeId, 
@@ -256,17 +225,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Spot Order client
 
+        SubscribeSpotOrderOptions ISpotOrderSocketClient.SubscribeSpotOrderOptions { get; } = new SubscribeSpotOrderOptions(_exchangeName, false);
         async Task<WebSocketResult<UpdateSubscription>> ISpotOrderSocketClient.SubscribeToSpotOrderUpdatesAsync(SubscribeSpotOrderRequest request, Action<DataEvent<SharedSpotOrder[]>> handler, CancellationToken ct)
-            => await SubscribeToSpotOrderUpdatesAsync(request, x => handler(x.ToType<SharedSpotOrder[]>(x.Data)), ct).ConfigureAwait(false);
-
-        public SubscribeSpotOrderOptions SubscribeSpotOrderOptions { get; } = new SubscribeSpotOrderOptions(_exchangeName, false);
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToSpotOrderUpdatesAsync(SubscribeSpotOrderRequest request, Action<DataEvent<SharedSpotOrderUpdate[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeSpotOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeSpotOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
-            var result = await _api.SubscribeToOrderUpdatesAsync(
+            var result = await SubscribeToOrderUpdatesAsync(
                 update =>
                 {
                     if (update.UpdateType == SocketUpdateType.Snapshot)
@@ -277,9 +243,9 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                     if (!data.Any())
                         return;
 
-                    handler(update.ToType<SharedSpotOrderUpdate[]>(data.Select(x =>
-                        new SharedSpotOrderUpdate(
-                            ExchangeSymbolCache.ParseSymbol(_topicSpotId, _api.EnvironmentName, null, x.Symbol),
+                    handler(update.ToType<SharedSpotOrder[]>(data.Select(x =>
+                        new SharedSpotOrder(
+                            ExchangeSymbolCache.ParseSymbol(_topicSpotId, EnvironmentName, null, x.Symbol),
                             x.Symbol,
                             x.OrderId,
                             ParseOrderType(x.OrderType),
@@ -292,10 +258,8 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                             OrderQuantity = new SharedOrderQuantity(x.Quantity, Math.Max(x.OrderValue, x.QuoteQuantityFilled)), // For market orders the value can be returned as smaller than the filled value
                             QuantityFilled = new SharedOrderQuantity(x.QuantityFilled, x.QuoteQuantityFilled),
                             UpdateTime = x.UpdateTime,
-#pragma warning disable CS0618 // Type or member is obsolete
                             Fee = Math.Abs(x.Fee),
                             FeeAsset = x.FeeAsset,
-#pragma warning restore CS0618 // Type or member is obsolete
                             TimeInForce = x.TimeInForce == Enums.TimeInForce.ImmediateOrCancel ? SharedTimeInForce.ImmediateOrCancel : x.TimeInForce == Enums.TimeInForce.FillOrKill ? SharedTimeInForce.FillOrKill : SharedTimeInForce.GoodTillCanceled,
                             AveragePrice = x.AveragePrice == 0 ? null : x.AveragePrice,
                             TriggerPrice = x.TriggerPrice,
@@ -331,17 +295,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Futures Order client
 
+        SubscribeFuturesOrderOptions IFuturesOrderSocketClient.SubscribeFuturesOrderOptions { get; } = new SubscribeFuturesOrderOptions(_exchangeName, false);
         async Task<WebSocketResult<UpdateSubscription>> IFuturesOrderSocketClient.SubscribeToFuturesOrderUpdatesAsync(SubscribeFuturesOrderRequest request, Action<DataEvent<SharedFuturesOrder[]>> handler, CancellationToken ct)
-            => await SubscribeToFuturesOrderUpdatesAsync(request, x => handler(x.ToType<SharedFuturesOrder[]>(x.Data)), ct).ConfigureAwait(false);
-
-        public SubscribeFuturesOrderOptions SubscribeFuturesOrderOptions { get; } = new SubscribeFuturesOrderOptions(_exchangeName, false);
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToFuturesOrderUpdatesAsync(SubscribeFuturesOrderRequest request, Action<DataEvent<SharedFuturesOrderUpdate[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeFuturesOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeFuturesOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
-            var result = await _api.SubscribeToOrderUpdatesAsync(
+            var result = await SubscribeToOrderUpdatesAsync(
                 update =>
                 {
                     if (update.UpdateType == SocketUpdateType.Snapshot)
@@ -352,9 +313,9 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                     if (!data.Any())
                         return;
 
-                    handler(update.ToType<SharedFuturesOrderUpdate[]>(data.Select(x =>
-                        new SharedFuturesOrderUpdate(
-                            ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, x.Symbol),
+                    handler(update.ToType<SharedFuturesOrder[]>(data.Select(x =>
+                        new SharedFuturesOrder(
+                            ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol),
                             x.Symbol,
                             x.OrderId,
                             x.OrderType == OrderType.Limit ? SharedOrderType.Limit : x.OrderType == OrderType.Market ? SharedOrderType.Market : SharedOrderType.Other,
@@ -367,10 +328,8 @@ namespace CryptoCom.Net.Clients.ExchangeApi
                             OrderQuantity = new SharedOrderQuantity(x.Quantity, x.OrderValue, x.Quantity),
                             QuantityFilled = new SharedOrderQuantity(x.QuantityFilled, x.QuoteQuantityFilled, x.QuantityFilled),
                             UpdateTime = x.UpdateTime,
-#pragma warning disable CS0618 // Type or member is obsolete
                             Fee = x.Fee,
                             FeeAsset = x.FeeAsset,
-#pragma warning restore CS0618 // Type or member is obsolete
                             TimeInForce = x.TimeInForce == Enums.TimeInForce.ImmediateOrCancel ? SharedTimeInForce.ImmediateOrCancel : x.TimeInForce == Enums.TimeInForce.FillOrKill ? SharedTimeInForce.FillOrKill : SharedTimeInForce.GoodTillCanceled,
                             AveragePrice = x.AveragePrice,
                             TriggerPrice = x.TriggerPrice,
@@ -385,14 +344,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         #endregion
 
         #region Position client
-        public SubscribePositionOptions SubscribePositionOptions { get; } = new SubscribePositionOptions(_exchangeName, false);
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToPositionUpdatesAsync(SubscribePositionRequest request, Action<DataEvent<SharedPosition[]>> handler, CancellationToken ct)
+        SubscribePositionOptions IPositionSocketClient.SubscribePositionOptions { get; } = new SubscribePositionOptions(_exchangeName, false);
+        async Task<WebSocketResult<UpdateSubscription>> IPositionSocketClient.SubscribeToPositionUpdatesAsync(SubscribePositionRequest request, Action<DataEvent<SharedPosition[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribePositionOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribePositionOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
-            var result = await _api.SubscribeToPositionUpdatesAsync(
+            var result = await SubscribeToPositionUpdatesAsync(
                 update =>
                 {
                     if (update.UpdateType == SocketUpdateType.Snapshot)
@@ -400,7 +359,7 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
                     handler(update.ToType<SharedPosition[]>(update.Data.Select(x => 
                         new SharedPosition(
-                            ExchangeSymbolCache.ParseSymbol(_topicFuturesId, _api.EnvironmentName, null, x.Symbol),
+                            ExchangeSymbolCache.ParseSymbol(_topicFuturesId, EnvironmentName, null, x.Symbol),
                             x.Symbol, 
                             new SharedOrderQuantity(x.Quantity),
                             x.UpdateTime)
@@ -419,14 +378,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
         #endregion
 
         #region Balance client
-        public SubscribeBalanceOptions SubscribeBalanceOptions { get; } = new SubscribeBalanceOptions(_exchangeName, false);
-        public async Task<WebSocketResult<UpdateSubscription>> SubscribeToBalanceUpdatesAsync(SubscribeBalancesRequest request, Action<DataEvent<SharedBalance[]>> handler, CancellationToken ct)
+        SubscribeBalanceOptions IBalanceSocketClient.SubscribeBalanceOptions { get; } = new SubscribeBalanceOptions(_exchangeName, false);
+        async Task<WebSocketResult<UpdateSubscription>> IBalanceSocketClient.SubscribeToBalanceUpdatesAsync(SubscribeBalancesRequest request, Action<DataEvent<SharedBalance[]>> handler, CancellationToken ct)
         {
-            var validationError = SubscribeBalanceOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.SubscribeBalanceOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return WebSocketResult.Fail<UpdateSubscription>(_exchangeName, validationError);
 
-            var result = await _api.SubscribeToBalanceUpdatesAsync(
+            var result = await SubscribeToBalanceUpdatesAsync(
                 update =>
                 {
                     handler(update.ToType<SharedBalance[]>(update.Data.PositionBalances.Select(x =>
@@ -445,31 +404,26 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Spot Order Management Client
 
-        public SharedFeeDeductionType SpotFeeDeductionType => SharedFeeDeductionType.DeductFromOutput;
-        public SharedFeeAssetType SpotFeeAssetType => SharedFeeAssetType.OutputAsset;
-        public SharedOrderType[] SpotSupportedOrderTypes { get; } = new[] { SharedOrderType.Limit, SharedOrderType.Market, SharedOrderType.LimitMaker };
-        public SharedTimeInForce[] SpotSupportedTimeInForce { get; } = new[] { SharedTimeInForce.GoodTillCanceled, SharedTimeInForce.ImmediateOrCancel, SharedTimeInForce.FillOrKill };
-        public SharedQuantitySupport SpotSupportedOrderQuantity { get; } = new SharedQuantitySupport(
+        SharedFeeDeductionType ISpotOrderManagementSocketClient.SpotFeeDeductionType => SharedFeeDeductionType.DeductFromOutput;
+        SharedFeeAssetType ISpotOrderManagementSocketClient.SpotFeeAssetType => SharedFeeAssetType.OutputAsset;
+        SharedOrderType[] ISpotOrderManagementSocketClient.SpotSupportedOrderTypes { get; } = new[] { SharedOrderType.Limit, SharedOrderType.Market, SharedOrderType.LimitMaker };
+        SharedTimeInForce[] ISpotOrderManagementSocketClient.SpotSupportedTimeInForce { get; } = new[] { SharedTimeInForce.GoodTillCanceled, SharedTimeInForce.ImmediateOrCancel, SharedTimeInForce.FillOrKill };
+        SharedQuantitySupport ISpotOrderManagementSocketClient.SpotSupportedOrderQuantity { get; } = new SharedQuantitySupport(
                 SharedQuantityType.BaseAsset,
                 SharedQuantityType.BaseAsset,
                 SharedQuantityType.BaseAndQuoteAsset,
                 SharedQuantityType.BaseAsset);
 
-        public string GenerateClientOrderId() => ExchangeHelpers.RandomString(32);
+        string ISpotOrderManagementSocketClient.GenerateClientOrderId() => ExchangeHelpers.RandomString(32);
 
-        async Task<ICallResult<SharedId>> IPlaceSpotOrder.PlaceSpotOrderAsync(PlaceSpotOrderRequest request, CancellationToken ct)
-            => await PlaceSpotOrderAsync(request, ct).ConfigureAwait(false);
-
-        PlaceSpotOrderOptions IPlaceSpotOrder.PlaceSpotOrderOptions => PlaceSpotOrderOptions;
-
-        public PlaceSpotOrderSocketOptions PlaceSpotOrderOptions { get; } = new PlaceSpotOrderSocketOptions(_exchangeName);
-        public async Task<QueryResult<SharedId>> PlaceSpotOrderAsync(PlaceSpotOrderRequest request, CancellationToken ct)
+        PlaceSpotOrderSocketOptions ISpotOrderManagementSocketClient.PlaceSpotOrderOptions { get; } = new PlaceSpotOrderSocketOptions(_exchangeName);
+        async Task<QueryResult<SharedId>> ISpotOrderManagementSocketClient.PlaceSpotOrderAsync(PlaceSpotOrderRequest request, CancellationToken ct)
         {
-            var validationError = PlaceSpotOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.PlaceSpotOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return QueryResult.Fail<SharedId>(Exchange, validationError);
 
-            var result = await _api.PlaceOrderAsync(
+            var result = await PlaceOrderAsync(
                 request.Symbol!.GetSymbol(FormatSymbol),
                 request.Side == SharedOrderSide.Buy ? Enums.OrderSide.Buy : Enums.OrderSide.Sell,
                 request.OrderType == SharedOrderType.Limit ? Enums.OrderType.Limit : request.OrderType == SharedOrderType.Market ? Enums.OrderType.Market : Enums.OrderType.Limit,
@@ -487,14 +441,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
             return QueryResult.Ok(result, new SharedId(result.Data.OrderId));
         }
 
-        public CancelSpotOrderSocketOptions CancelSpotOrderOptions { get; } = new CancelSpotOrderSocketOptions(_exchangeName, true);
-        public async Task<QueryResult<SharedId>> CancelSpotOrderAsync(CancelOrderRequest request, CancellationToken ct)
+        CancelSpotOrderSocketOptions ISpotOrderManagementSocketClient.CancelSpotOrderOptions { get; } = new CancelSpotOrderSocketOptions(_exchangeName, true);
+        async Task<QueryResult<SharedId>> ISpotOrderManagementSocketClient.CancelSpotOrderAsync(CancelOrderRequest request, CancellationToken ct)
         {
-            var validationError = CancelSpotOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.CancelSpotOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return QueryResult.Fail<SharedId>(Exchange, validationError);
 
-            var order = await _api.CancelOrderAsync(request.OrderId, ct: ct).ConfigureAwait(false);
+            var order = await CancelOrderAsync(request.OrderId, ct: ct).ConfigureAwait(false);
             if (!order.Success)
                 return QueryResult.Fail<SharedId>(order);
 
@@ -514,25 +468,27 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
         #region Futures Order Management Client
 
-        public SharedFeeDeductionType FuturesFeeDeductionType => SharedFeeDeductionType.AddToCost;
-        public SharedFeeAssetType FuturesFeeAssetType => SharedFeeAssetType.QuoteAsset;
+        SharedFeeDeductionType IFuturesOrderManagementSocketClient.FuturesFeeDeductionType => SharedFeeDeductionType.AddToCost;
+        SharedFeeAssetType IFuturesOrderManagementSocketClient.FuturesFeeAssetType => SharedFeeAssetType.QuoteAsset;
 
-        public SharedOrderType[] FuturesSupportedOrderTypes { get; } = new[] { SharedOrderType.Limit, SharedOrderType.Market };
-        public SharedTimeInForce[] FuturesSupportedTimeInForce { get; } = new[] { SharedTimeInForce.GoodTillCanceled, SharedTimeInForce.ImmediateOrCancel, SharedTimeInForce.FillOrKill };
-        public SharedQuantitySupport FuturesSupportedOrderQuantity { get; } = new SharedQuantitySupport(
+        SharedOrderType[] IFuturesOrderManagementSocketClient.FuturesSupportedOrderTypes { get; } = new[] { SharedOrderType.Limit, SharedOrderType.Market };
+        SharedTimeInForce[] IFuturesOrderManagementSocketClient.FuturesSupportedTimeInForce { get; } = new[] { SharedTimeInForce.GoodTillCanceled, SharedTimeInForce.ImmediateOrCancel, SharedTimeInForce.FillOrKill };
+        SharedQuantitySupport IFuturesOrderManagementSocketClient.FuturesSupportedOrderQuantity { get; } = new SharedQuantitySupport(
                 SharedQuantityType.BaseAsset,
                 SharedQuantityType.BaseAsset,
                 SharedQuantityType.BaseAsset,
                 SharedQuantityType.BaseAsset);
 
-        public PlaceFuturesOrderSocketOptions PlaceFuturesOrderOptions { get; } = new PlaceFuturesOrderSocketOptions(_exchangeName, false);
-        public async Task<QueryResult<SharedId>> PlaceFuturesOrderAsync(PlaceFuturesOrderRequest request, CancellationToken ct)
+        string IFuturesOrderManagementSocketClient.GenerateClientOrderId() => ExchangeHelpers.RandomString(32);
+
+        PlaceFuturesOrderSocketOptions IFuturesOrderManagementSocketClient.PlaceFuturesOrderOptions { get; } = new PlaceFuturesOrderSocketOptions(_exchangeName, false);
+        async Task<QueryResult<SharedId>> IFuturesOrderManagementSocketClient.PlaceFuturesOrderAsync(PlaceFuturesOrderRequest request, CancellationToken ct)
         {
-            var validationError = PlaceFuturesOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.PlaceFuturesOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return QueryResult.Fail<SharedId>(Exchange, validationError);
 
-            var result = await _api.PlaceOrderAsync(
+            var result = await PlaceOrderAsync(
                 request.Symbol!.GetSymbol(FormatSymbol),
                 request.Side == SharedOrderSide.Buy ? Enums.OrderSide.Buy : Enums.OrderSide.Sell,
                 request.OrderType == SharedOrderType.Limit ? Enums.OrderType.Limit : OrderType.Market,
@@ -548,14 +504,14 @@ namespace CryptoCom.Net.Clients.ExchangeApi
 
             return QueryResult.Ok(result, new SharedId(result.Data.OrderId));
         }
-        public CancelFuturesOrderSocketOptions CancelFuturesOrderOptions { get; } = new CancelFuturesOrderSocketOptions(_exchangeName, true);
-        public async Task<QueryResult<SharedId>> CancelFuturesOrderAsync(CancelOrderRequest request, CancellationToken ct)
+        CancelFuturesOrderSocketOptions IFuturesOrderManagementSocketClient.CancelFuturesOrderOptions { get; } = new CancelFuturesOrderSocketOptions(_exchangeName, true);
+        async Task<QueryResult<SharedId>> IFuturesOrderManagementSocketClient.CancelFuturesOrderAsync(CancelOrderRequest request, CancellationToken ct)
         {
-            var validationError = CancelFuturesOrderOptions.ValidateRequest(request, this);
+            var validationError = SharedClient.CancelFuturesOrderOptions.ValidateRequest(request, this);
             if (validationError != null)
                 return QueryResult.Fail<SharedId>(Exchange, validationError);
 
-            var order = await _api.CancelOrderAsync(request.OrderId, ct: ct).ConfigureAwait(false);
+            var order = await CancelOrderAsync(request.OrderId, ct: ct).ConfigureAwait(false);
             if (!order.Success)
                 return QueryResult.Fail<SharedId>(order);
 

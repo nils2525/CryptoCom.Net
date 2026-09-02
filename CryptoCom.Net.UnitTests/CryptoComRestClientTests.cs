@@ -1,13 +1,12 @@
-using CryptoCom.Net.Clients;
-using CryptoCom.Net.Clients.ExchangeApi;
-using CryptoCom.Net.Interfaces.Clients;
 using CryptoExchange.Net.Clients;
-using CryptoExchange.Net.Objects;
-using CryptoExchange.Net.Testing;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using System.Collections.Generic;
+using CryptoCom.Net.Clients;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using CryptoExchange.Net.Objects;
+using CryptoCom.Net.Interfaces.Clients;
+using CryptoCom.Net.Clients.ExchangeApi;
 
 namespace CryptoCom.Net.UnitTests
 {
@@ -119,24 +118,6 @@ namespace CryptoCom.Net.UnitTests
             Assert.That(((BaseApiClient)restClient.ExchangeApi).ClientOptions.Proxy.Port, Is.EqualTo(80));
             Assert.That(((BaseApiClient)socketClient.ExchangeApi).ClientOptions.Proxy.Host, Is.EqualTo("host2"));
             Assert.That(((BaseApiClient)socketClient.ExchangeApi).ClientOptions.Proxy.Port, Is.EqualTo(81));
-        }
-
-        [Test]
-        public void TestFuturesRestSharedApiDiscoveryMatchesAggregate()
-        {
-            var (missingOptions, missingInterfaces) = TestHelpers.ValidateSharedApi(new CryptoComRestClient().ExchangeApi.SharedApi);
-
-            Assert.That(missingOptions, Is.Empty);
-            Assert.That(missingInterfaces, Is.Empty);
-        }
-
-        [Test]
-        public void TestFuturesSocketSharedApiDiscoveryMatchesAggregate()
-        {
-            var (missingOptions, missingInterfaces) = TestHelpers.ValidateSharedApi(new CryptoComSocketClient().ExchangeApi.SharedApi);
-
-            Assert.That(missingOptions, Is.Empty);
-            Assert.That(missingInterfaces, Is.Empty);
         }
     }
 }
